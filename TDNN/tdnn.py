@@ -5,14 +5,21 @@ import torch.nn.functional as F
 
 
 class TDNN(nn.Module):
-    def __init__(self, kernels, input_embed_size):
+    def __init__(self, kernels, input_embed_size, bias = False):
         super(TDNN, self).__init__()
 
         self.input_embed_size = input_embed_size
 
-        self.kernels = [Parameter(t.Tensor(out_dim, input_embed_size, kW).uniform_(-1, 1))
+        self.kernels = [Parameter(t.Tensor(out_dim, input_embed_size, kW).normal_(0, 0.05))
                         for kW, out_dim in kernels]
         self._add_to_parameters(self.kernels, 'TDNN_kernel')
+
+        self.use_bias = bias
+
+        if self.use_bias:
+            self.biases = [Parameter(t.Tensor(out_dim).normal_(0, 0.05))
+                           for _, out_dim in kernels]
+            self._add_to_parameters(self.biases, 'TDNN_biases')
 
     def forward(self, x):
         """
@@ -35,7 +42,8 @@ class TDNN(nn.Module):
         # leaps with shape
         x = x.view(-1, max_word_len, self.input_embed_size).transpose(1, 2).contiguous()
 
-        xs = [F.relu(F.conv1d(x, kernel)) for kernel in self.kernels]
+        xs = [F.relu(F.conv1d(x, kernel, bias=self.biases[i] if self.use_bias else None))
+              for i, kernel in enumerate(self.kernels)]
         xs = [x.max(2)[0].squeeze(2) for x in xs]
 
         x = t.cat(xs, 1)
