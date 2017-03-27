@@ -5,28 +5,29 @@ import torch.nn.functional as F
 
 
 class TDNN(nn.Module):
-    def __init__(self, kernels, input_embed_size, bias = False):
+    def __init__(self, kernels, input_embed_size, bias=False):
+        """
+        :param kernels: array of pairs (width, out_dim)
+        :param input_embed_size: size of input. conv kernel has shape of [out_dim_{i}, input_embed_size, width_{i}]
+        :param bias: whether to use bias when convolution is performed
+        """
         super(TDNN, self).__init__()
 
         self.input_embed_size = input_embed_size
 
-        self.kernels = [Parameter(t.Tensor(out_dim, input_embed_size, kW).normal_(0, 0.05))
-                        for kW, out_dim in kernels]
-        self._add_to_parameters(self.kernels, 'TDNN_kernel')
+        self.kernels = nn.ParameterList([Parameter(t.Tensor(out_dim, input_embed_size, kW).normal_(0, 0.05))
+                                         for kW, out_dim in kernels])
 
         self.use_bias = bias
 
         if self.use_bias:
-            self.biases = [Parameter(t.Tensor(out_dim).normal_(0, 0.05))
-                           for _, out_dim in kernels]
-            self._add_to_parameters(self.biases, 'TDNN_biases')
+            self.biases = nn.ParameterList([Parameter(t.Tensor(out_dim).normal_(0, 0.05))
+                                            for _, out_dim in kernels])
 
     def forward(self, x):
         """
         :param x: tensor with shape [batch_size, max_seq_len, max_word_len, char_embed_size]
-
         :return: tensor with shape [batch_size, max_seq_len, depth_sum]
-
         applies multikenrel 1d-conv layer along every word in input with max-over-time pooling
             to emit fixed-size output
         """
@@ -50,7 +51,3 @@ class TDNN(nn.Module):
         x = x.view(batch_size, seq_len, -1)
 
         return x
-
-    def _add_to_parameters(self, parameters, name):
-        for i, parameter in enumerate(parameters):
-            self.register_parameter(name='{}-{}'.format(name, i), param=parameter)
